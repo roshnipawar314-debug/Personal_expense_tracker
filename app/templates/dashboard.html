@@ -1,0 +1,338 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="page-header" data-dashboard-data-url="{{ dashboard_data_url }}">
+  <div>
+    <p class="eyebrow">Overview</p>
+    <h1>Financial dashboard</h1>
+  </div>
+  <button class="btn btn-primary" id="open-transaction-modal" type="button">
+    <i class="bi bi-plus-lg me-1"></i> Add transaction
+  </button>
+</div>
+
+<div id="transaction-feedback" class="alert d-none" role="status" aria-live="polite"></div>
+<div id="dashboard-refresh-error" class="alert alert-danger d-none" role="alert"></div>
+<p id="dashboard-refresh-status" class="visually-hidden" role="status" aria-live="polite"></p>
+
+<div class="row g-4 mb-4">
+  {% set cards = [
+    ('Total income', summary.total_income, 'success', 'bi-arrow-up-circle'),
+    ('Total expenses', summary.total_expenses, 'warning', 'bi-arrow-down-circle'),
+    ('Current balance', summary.balance, 'primary', 'bi-wallet2'),
+    ('Total savings', summary.total_savings, 'info', 'bi-piggy-bank')
+  ] %}
+  {% for label, value, tone, icon in cards %}
+  <div class="col-md-6 col-xl-3">
+    <div class="stat-card card-{{ tone }}">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <p class="stat-label">{{ label }}</p>
+          <h3
+            data-summary-key="{{ 'balance' if label == 'Current balance' else 'total_savings' if label == 'Total savings' else 'total_income' if label == 'Total income' else 'total_expenses' }}"
+            data-summary-value="{{ value }}"
+          >{{ currency }} {{ '%.2f'|format(value) }}</h3>
+        </div>
+        <span class="stat-icon"><i class="bi {{ icon }}"></i></span>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-lg-6">
+    <div class="panel dashboard-chart-panel">
+      <div class="panel-header"><h3>Income Overview</h3></div>
+      <div class="chart-box dashboard-trend-chart">
+        <canvas id="incomeOverviewChart" aria-label="Monthly income overview" role="img"></canvas>
+        <p class="dashboard-chart-empty d-none">No income transactions available yet.</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="panel dashboard-chart-panel">
+      <div class="panel-header"><h3>Expense Overview</h3></div>
+      <div class="chart-box dashboard-trend-chart">
+        <canvas id="expenseOverviewChart" aria-label="Monthly expense overview" role="img"></canvas>
+        <p class="dashboard-chart-empty d-none">No expense transactions available yet.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="panel">
+      <div class="panel-header"><h3>Category spend</h3></div>
+      <div class="chart-box small-box">
+        <canvas id="categoryChart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4 mt-1">
+  <div class="col-lg-7">
+    <div class="panel">
+      <div class="panel-header">
+        <h3>Recent transactions</h3>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle">
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Type</th>
+              <th>Date</th>
+              <th>Amount</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="recent-transactions">
+            {% for tx in recent_transactions %}
+            <tr data-transaction-id="{{ tx.id }}"
+                data-transaction-url="{{ url_for('main.transaction_api', transaction_id=tx.id) }}"
+                data-title="{{ tx.title }}"
+                data-type="{{ tx.type }}"
+                data-category="{{ tx.category or 'Other' }}"
+                data-amount="{{ tx.amount }}"
+                data-account-id="{{ tx.account_id or '' }}"
+                data-date="{{ tx.date.isoformat() }}"
+                data-payment-method="{{ tx.payment_method or 'Cash' }}"
+                data-description="{{ tx.notes or '' }}">
+              <td class="transaction-title">{{ tx.title }}</td>
+              <td class="transaction-type"><span class="badge bg-{{ 'success' if tx.type|lower == 'income' else 'warning' }} text-white">{{ tx.type }}</span></td>
+              <td class="transaction-date">{{ tx.date }}</td>
+              <td class="transaction-amount">{{ currency }} {{ '%.2f'|format(tx.amount) }}</td>
+              <td class="text-nowrap">
+                <button class="btn btn-sm btn-outline-primary edit-transaction" type="button" aria-label="Edit transaction"><i class="bi bi-pencil" aria-hidden="true"></i></button>
+                <button class="btn btn-sm btn-outline-danger delete-transaction" type="button" aria-label="Delete transaction"><i class="bi bi-trash" aria-hidden="true"></i></button>
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="text-center text-muted">No transactions yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="panel">
+      <div class="panel-header">
+        <h3>Goal progress</h3>
+      </div>
+      <div class="goals-stack">
+        {% for goal in goals %}
+        <div class="goal-card">
+          <div class="d-flex justify-content-between">
+            <strong>{{ goal.name }}</strong>
+            <span>{{ '%.1f'|format(goal.percent) }}%</span>
+          </div>
+          <div class="progress mt-2">
+            <div class="progress-bar" style="width: {{ goal.percent }}%"></div>
+          </div>
+          <small class="text-muted">${{ '%.2f'|format(goal.current) }} / ${{ '%.2f'|format(goal.target) }}</small>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">No goals yet.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% include 'partials/transaction_edit_modal.html' %}
+
+<div class="modal fade" id="transaction-modal" tabindex="-1" aria-labelledby="transaction-modal-title" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+    <div class="modal-content transaction-modal-content">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow mb-1">New entry</p>
+          <h2 class="modal-title fs-4" id="transaction-modal-title">Add transaction</h2>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="transaction-form" action="{{ url_for('main.transactions') }}" method="post">
+        <div class="modal-body">
+          <div id="transaction-form-error" class="alert alert-danger d-none" role="alert" aria-live="assertive"></div>
+          {% if accounts %}
+          <div class="transaction-form-grid">
+            <div>
+              <label for="transaction-type" class="form-label">Transaction type</label>
+              <select class="form-select" id="transaction-type" name="type" required>
+                <option value="expense" selected>Expense</option>
+                <option value="income">Income</option>
+              </select>
+            </div>
+            <div>
+              <label for="transaction-amount" class="form-label">Amount</label>
+              <input class="form-control" id="transaction-amount" name="amount" type="number" min="0.01" max="9999999999.99" step="0.01" inputmode="decimal" placeholder="0.00" required>
+            </div>
+            <div>
+              <label for="transaction-category" class="form-label">Category</label>
+              <select class="form-select" id="transaction-category" name="category" required>
+                {% for category in ['Food', 'Shopping', 'Travel', 'Bills', 'Education', 'Healthcare', 'Entertainment', 'Salary', 'Freelance', 'Other'] %}
+                <option value="{{ category }}">{{ category }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label for="transaction-account" class="form-label">Account</label>
+              <select class="form-select" id="transaction-account" name="account_id" required>
+                <option value="" selected disabled>Select an account</option>
+                {% for account in accounts %}
+                <option value="{{ account.id }}">{{ account.name }} ({{ account.type }})</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label for="transaction-date" class="form-label">Date</label>
+              <input class="form-control" id="transaction-date" name="date" type="date" value="{{ today.isoformat() }}" required>
+            </div>
+            <div>
+              <label for="transaction-payment" class="form-label">Payment method</label>
+              <select class="form-select" id="transaction-payment" name="payment_method" required>
+                <option>Cash</option>
+                <option>UPI</option>
+                <option>Card</option>
+                <option>Bank Transfer</option>
+              </select>
+            </div>
+            <div class="transaction-form-description">
+              <label for="transaction-description" class="form-label">Description <span class="text-muted">(optional)</span></label>
+              <textarea class="form-control" id="transaction-description" name="description" rows="3" maxlength="500" placeholder="Add a note about this transaction"></textarea>
+            </div>
+          </div>
+          {% else %}
+          <div class="alert alert-info mb-0">
+            Create an account before adding transactions.
+            <a href="{{ url_for('main.accounts') }}" class="alert-link">Go to Accounts</a>
+          </div>
+          {% endif %}
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          {% if accounts %}
+          <button type="submit" class="btn btn-primary" id="save-transaction-button">
+            <span class="save-button-label">Save Transaction</span>
+            <span class="spinner-border spinner-border-sm ms-2 d-none" aria-hidden="true"></span>
+          </button>
+          {% endif %}
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{{ url_for('static', filename='js/transactions.js') }}"></script>
+<script>
+  const monthlyChart = {{ monthly_chart | tojson }};
+  const chartCurrency = {{ currency | tojson }};
+  window.expenseFlowCurrency = chartCurrency;
+  window.expenseFlowFormatCurrency = new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: chartCurrency
+  });
+  const moneyFormatter = new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: chartCurrency
+  });
+  document.querySelectorAll('[data-summary-value]').forEach(element => {
+    element.textContent = moneyFormatter.format(Number(element.dataset.summaryValue));
+  });
+
+  function createMonthlyTransactionChart(canvasId, chartName, transactionType, color, values) {
+    const canvas = document.getElementById(canvasId);
+    const hasTransactions = values.some(value => Number(value) > 0);
+    canvas.classList.toggle('d-none', !hasTransactions);
+    canvas.parentElement.querySelector('.dashboard-chart-empty').classList.toggle('d-none', hasTransactions);
+    window[chartName] = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels: monthlyChart.labels,
+        datasets: [{
+          label: transactionType === 'income' ? 'Income' : 'Expenses',
+          data: values.map(Number),
+          backgroundColor: color,
+          borderColor: color,
+          borderWidth: 1,
+          borderRadius: 7,
+          categoryPercentage: 0.68,
+          barPercentage: 0.82,
+          maxBarThickness: 44
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: 'x',
+        interaction: { intersect: false, mode: 'index' },
+        plugins: {
+          legend: {
+            display: true,
+            position: 'top',
+            labels: { usePointStyle: true, pointStyle: 'rectRounded', boxWidth: 8 }
+          },
+          tooltip: {
+            callbacks: {
+              title: items => items.length ? items[0].label : '',
+              label: item => (transactionType === 'income' ? 'Income: ' : 'Expenses: ') +
+                moneyFormatter.format(item.parsed.y)
+            }
+          }
+        },
+        scales: {
+          x: {
+            title: { display: true, text: 'Month' },
+            grid: { display: false },
+            ticks: {
+              color: '#6B7280',
+              maxRotation: 0,
+              autoSkip: true
+            }
+          },
+          y: {
+            beginAtZero: true,
+            title: { display: true, text: 'Amount (' + chartCurrency + ')' },
+            grid: { color: 'rgba(107, 114, 128, 0.14)' },
+            ticks: {
+              color: '#6B7280',
+              callback: value => moneyFormatter.format(value)
+            }
+          }
+        }
+      }
+    });
+  }
+
+  createMonthlyTransactionChart(
+    'incomeOverviewChart', 'expenseFlowIncomeChart', 'income',
+    '#2563EB', monthlyChart.income
+  );
+  createMonthlyTransactionChart(
+    'expenseOverviewChart', 'expenseFlowExpenseChart', 'expense',
+    '#F97316', monthlyChart.expense
+  );
+
+  const categoryCtx = document.getElementById('categoryChart');
+  const categoryData = {{ categories | tojson }};
+  window.expenseFlowCategoryChart = new Chart(categoryCtx, {
+    type: 'doughnut',
+    data: {
+      labels: Object.keys(categoryData),
+      datasets: [{
+        data: Object.values(categoryData).map(Number),
+        backgroundColor: ['#4F46E5', '#06B6D4', '#16A34A', '#EA580C', '#DC2626', '#F59E0B']
+      }]
+    },
+    options: { responsive: true, maintainAspectRatio: false }
+  });
+</script>
+{% endblock %}

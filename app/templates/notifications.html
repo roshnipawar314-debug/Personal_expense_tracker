@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}Notifications{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <p class="eyebrow">Alerts</p>
+    <h1>Notifications</h1>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-header"><h3>Inbox</h3></div>
+  <div class="list-group list-group-flush mt-3">
+    {% for notification in notifications %}
+      <div class="list-group-item">
+        <div class="d-flex justify-content-between">
+          <strong>{{ notification.title }}</strong>
+          <span class="text-muted small">{{ notification.created_at.strftime('%Y-%m-%d') }}</span>
+        </div>
+        <p class="mb-0 mt-2 text-muted">{{ notification.message }}</p>
+      </div>
+    {% else %}
+      <div class="list-group-item text-center text-muted">No notifications yet.</div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

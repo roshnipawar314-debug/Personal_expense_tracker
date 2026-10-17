@@ -1,0 +1,225 @@
+{% extends 'base.html' %}
+{% block title %}Reports{% endblock %}
+{% block content %}
+<div class="reports-page" id="reports-page"
+     data-api-url="{{ report_api_url }}"
+     data-csv-url="{{ report_csv_url }}"
+     data-pdf-url="{{ report_pdf_url }}"
+     data-transaction-url-template="{{ transaction_url_template }}"
+     data-currency="{{ currency }}">
+  <div class="page-header report-page-header">
+    <div>
+      <p class="eyebrow">Insights</p>
+      <h1>Financial reports</h1>
+      <p class="text-muted mb-0">Understand your cash flow, spending, and budgets.</p>
+      <p id="report-range-label" class="small fw-semibold mt-2 mb-0"></p>
+    </div>
+    <div class="report-actions">
+      <button class="btn btn-outline-secondary" type="button" id="print-report"><i class="bi bi-printer me-1"></i> Print</button>
+      <button class="btn btn-outline-primary" type="button" id="download-pdf"><i class="bi bi-file-earmark-pdf me-1"></i> PDF</button>
+      <button class="btn btn-primary" type="button" id="download-csv"><i class="bi bi-download me-1"></i> Export CSV</button>
+    </div>
+  </div>
+
+  <div id="reports-error" class="alert alert-danger d-none" role="alert"></div>
+  <div id="transaction-action-feedback" class="alert d-none" role="status" aria-live="polite"></div>
+  <div id="reports-loading" class="alert alert-info d-none" role="status">
+    <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Updating your report…
+  </div>
+
+  <section class="panel report-filter-panel mb-4" aria-label="Report filters">
+    <div class="report-filter-grid">
+      <div>
+        <label class="form-label" for="report-range">Date range</label>
+        <select id="report-range" class="form-select">
+          <option value="this_month">This Month</option>
+          <option value="last_month">Last Month</option>
+          <option value="last_3_months">Last 3 Months</option>
+          <option value="last_6_months">Last 6 Months</option>
+          <option value="this_year">This Year</option>
+          <option value="custom">Custom Range</option>
+        </select>
+      </div>
+      <div id="custom-date-fields" class="report-filter-custom d-none">
+        <div>
+          <label class="form-label" for="report-start-date">From</label>
+          <input type="date" id="report-start-date" class="form-control">
+        </div>
+        <div>
+          <label class="form-label" for="report-end-date">To</label>
+          <input type="date" id="report-end-date" class="form-control">
+        </div>
+      </div>
+      <div>
+        <label class="form-label" for="report-type">Transaction type</label>
+        <select id="report-type" class="form-select">
+          <option value="all">All types</option>
+          <option value="income">Income</option>
+          <option value="expense">Expense</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="report-category">Category</label>
+        <select id="report-category" class="form-select">
+          <option value="">All categories</option>
+          {% for category in report_data.options.categories %}
+          <option value="{{ category }}">{{ category }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="report-account">Account</label>
+        <select id="report-account" class="form-select">
+          <option value="">All accounts</option>
+          {% for account in report_data.options.accounts %}
+          <option value="{{ account.id }}">{{ account.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="report-filter-period">
+        <label class="form-label" for="report-month">Monthly comparison</label>
+        <div class="d-flex gap-2">
+          <select id="report-month" class="form-select" aria-label="Monthly comparison month">
+            {% for month_number in range(1, 13) %}
+            <option value="{{ month_number }}" {% if month_number == current_month %}selected{% endif %}>{{ ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][month_number - 1] }}</option>
+            {% endfor %}
+          </select>
+          <select id="report-year" class="form-select" aria-label="Monthly comparison year">
+            {% for year in years %}
+            <option value="{{ year }}" {% if year == current_year %}selected{% endif %}>{{ year }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="row g-3 mb-4 report-summary-cards" aria-label="Report overview">
+    {% for key, label, icon, tone in [
+      ('total_income', 'Total income', 'bi-arrow-down-left-circle', 'success'),
+      ('total_expenses', 'Total expenses', 'bi-arrow-up-right-circle', 'warning'),
+      ('net_savings', 'Net savings', 'bi-piggy-bank', 'primary'),
+      ('savings_rate', 'Savings rate', 'bi-percent', 'info'),
+      ('total_budget', 'Total budget', 'bi-wallet2', 'primary'),
+      ('budget_used', 'Budget used', 'bi-graph-up-arrow', 'warning')
+    ] %}
+    <div class="col-6 col-xl-2 col-md-4">
+      <article class="stat-card report-stat-card card-{{ tone }}">
+        <div class="d-flex justify-content-between align-items-start gap-2">
+          <div>
+            <p class="stat-label">{{ label }}</p>
+            <h3 data-report-summary="{{ key }}">—</h3>
+          </div>
+          <span class="stat-icon"><i class="bi {{ icon }}"></i></span>
+        </div>
+      </article>
+    </div>
+    {% endfor %}
+  </section>
+
+  <section class="panel mb-4">
+    <div class="panel-header report-section-header">
+      <div>
+        <h3>Monthly financial summary</h3>
+        <p id="monthly-summary-label" class="text-muted small mb-0"></p>
+      </div>
+      <span id="monthly-summary-range" class="badge bg-light text-dark"></span>
+    </div>
+    <div class="row g-3">
+      {% for key, label in [('income', 'Income'), ('expenses', 'Expenses'), ('net_cash_flow', 'Net cash flow')] %}
+      <div class="col-md-4">
+        <div class="report-monthly-stat">
+          <span class="text-muted">{{ label }}</span>
+          <strong data-monthly-value="{{ key }}">—</strong>
+          <small data-monthly-comparison="{{ key }}" class="text-muted"></small>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="row g-4 mb-4 report-charts">
+    {% for chart_id, title, size in [
+      ('income-expenses-report-chart', 'Income vs expenses', 'col-xl-6'),
+      ('spending-trend-report-chart', 'Monthly spending trend', 'col-xl-6'),
+      ('category-report-chart', 'Expense categories', 'col-xl-6'),
+      ('income-sources-report-chart', 'Income sources', 'col-xl-6'),
+      ('budget-usage-report-chart', 'Budget usage', 'col-xl-6'),
+      ('savings-trend-report-chart', 'Savings trend', 'col-xl-6')
+    ] %}
+    <div class="col-lg-6 {{ size }}">
+      <div class="panel report-chart-panel">
+        <div class="panel-header"><h3>{{ title }}</h3></div>
+        <div class="report-chart-box">
+          <canvas id="{{ chart_id }}" aria-label="{{ title }}" role="img"></canvas>
+          <p class="report-chart-empty d-none">There is no data for this selection yet.</p>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </section>
+
+  <section class="panel mb-4">
+    <div class="panel-header report-section-header">
+      <div>
+        <h3>Budget performance</h3>
+        <p class="text-muted small mb-0">Spending is matched to each budget’s category and active date period.</p>
+      </div>
+    </div>
+    <div id="budget-performance" class="report-budget-list"></div>
+    <p id="budget-empty" class="report-empty-state d-none">No active budgets overlap this report period.</p>
+  </section>
+
+  <section class="panel mb-4">
+    <div class="panel-header"><h3>Financial insights</h3></div>
+    <div id="report-insights" class="report-insights-grid"></div>
+  </section>
+
+  <section class="panel report-transactions-panel">
+    <div class="panel-header report-section-header report-table-header">
+      <div>
+        <h3>Transaction history</h3>
+        <p id="transaction-result-count" class="text-muted small mb-0"></p>
+      </div>
+      <div class="report-search">
+        <label class="visually-hidden" for="transaction-search">Search transactions</label>
+        <i class="bi bi-search" aria-hidden="true"></i>
+        <input id="transaction-search" type="search" class="form-control" placeholder="Search transactions">
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle report-transaction-table">
+        <thead>
+          <tr>
+            <th><button type="button" class="report-sort-button" data-sort="date">Date <span></span></button></th>
+            <th><button type="button" class="report-sort-button" data-sort="title">Description <span></span></button></th>
+            <th><button type="button" class="report-sort-button" data-sort="category">Category <span></span></button></th>
+            <th>Account</th>
+            <th><button type="button" class="report-sort-button" data-sort="type">Type <span></span></button></th>
+            <th class="text-end"><button type="button" class="report-sort-button" data-sort="amount">Amount <span></span></button></th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="report-transactions"></tbody>
+      </table>
+    </div>
+    <div class="report-pagination">
+      <span id="report-page-label" class="text-muted small"></span>
+      <div class="d-flex gap-2">
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="report-page-prev">Previous</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="report-page-next">Next</button>
+      </div>
+    </div>
+  </section>
+</div>
+{% include 'partials/transaction_edit_modal.html' %}
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  window.expenseFlowInitialReport = {{ report_data | tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/transactions.js') }}"></script>
+<script src="{{ url_for('static', filename='js/reports.js') }}"></script>
+{% endblock %}

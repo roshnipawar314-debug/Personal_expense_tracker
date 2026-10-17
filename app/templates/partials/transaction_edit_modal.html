@@ -1,0 +1,71 @@
+<div class="modal fade" id="edit-transaction-modal" tabindex="-1" aria-labelledby="edit-transaction-title" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+    <div class="modal-content transaction-modal-content">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow mb-1">Update entry</p>
+          <h2 class="modal-title fs-4" id="edit-transaction-title">Edit transaction</h2>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="edit-transaction-form">
+        <div class="modal-body">
+          <div id="edit-transaction-error" class="alert alert-danger d-none" role="alert"></div>
+          <div class="transaction-form-grid">
+            <div>
+              <label class="form-label" for="edit-transaction-type">Transaction type</label>
+              <select class="form-select" id="edit-transaction-type" name="type" required>
+                <option value="income">Income</option>
+                <option value="expense">Expense</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label" for="edit-transaction-amount">Amount</label>
+              <input class="form-control" id="edit-transaction-amount" name="amount" type="number" min="0.01" max="9999999999.99" step="0.01" required>
+            </div>
+            <div>
+              <label class="form-label" for="edit-transaction-category">Category</label>
+              <select class="form-select" id="edit-transaction-category" name="category" required>
+                {% for category in transaction_categories %}
+                <option value="{{ category }}">{{ category }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label class="form-label" for="edit-transaction-account">Account</label>
+              <select class="form-select" id="edit-transaction-account" name="account_id" required>
+                {% for account in accounts %}
+                <option value="{{ account.id }}">{{ account.name }} ({{ account.type }})</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label class="form-label" for="edit-transaction-date">Date</label>
+              <input class="form-control" id="edit-transaction-date" name="date" type="date" required>
+            </div>
+            <div>
+              <label class="form-label" for="edit-transaction-payment">Payment method</label>
+              <select class="form-select" id="edit-transaction-payment" name="payment_method" required>
+                {% for method in ['Cash', 'UPI', 'Card', 'Bank Transfer'] %}
+                <option value="{{ method }}">{{ method }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="transaction-form-description">
+              <label class="form-label" for="edit-transaction-title">Title</label>
+              <input class="form-control" id="edit-transaction-title" name="title" type="text" maxlength="200" required>
+            </div>
+            <div class="transaction-form-description">
+              <label class="form-label" for="edit-transaction-description">Description <span class="text-muted">(optional)</span></label>
+              <textarea class="form-control" id="edit-transaction-description" name="description" rows="3" maxlength="500"></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-primary" id="update-transaction-button" type="submit">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

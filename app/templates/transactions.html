@@ -1,0 +1,127 @@
+{% extends 'base.html' %}
+{% block title %}Transactions{% endblock %}
+{% block content %}
+<div class="page-header" data-currency-code="{{ current_user.preferred_currency or 'USD' }}">
+  <div>
+    <p class="eyebrow">Management</p>
+    <h1>Transactions</h1>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="panel">
+      <div class="panel-header"><h3>Add transaction</h3></div>
+      <form method="POST" class="mt-3">
+        <div class="mb-3">
+          <label class="form-label" for="transaction-type">Transaction type</label>
+          <select name="type" id="transaction-type" class="form-select" required>
+            <option value="expense" selected>Expense</option>
+            <option value="income">Income</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="transaction-amount">Amount</label>
+          <input type="number" min="0.01" max="9999999999.99" step="0.01" class="form-control" id="transaction-amount" name="amount" required>
+        </div>
+        <div class="mb-3 mt-3">
+          <label class="form-label" for="transaction-category">Category</label>
+          <select class="form-select" id="transaction-category" name="category" required>
+            {% for category in transaction_categories %}
+            <option value="{{ category }}">{{ category }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="transaction-account">Account</label>
+          <select class="form-select" id="transaction-account" name="account_id" required>
+            <option value="" selected disabled>Select an account</option>
+            {% for account in accounts %}
+            <option value="{{ account.id }}">{{ account.name }} ({{ account.type }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="transaction-date">Date</label>
+          <input type="date" class="form-control" id="transaction-date" name="date" value="{{ today.isoformat() }}" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="transaction-payment">Payment method</label>
+          <select class="form-select" id="transaction-payment" name="payment_method" required>
+            {% for method in payment_methods %}
+            <option value="{{ method }}">{{ method }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="transaction-description">Description <span class="text-muted">(optional)</span></label>
+          <textarea class="form-control" id="transaction-description" name="description" maxlength="500"></textarea>
+        </div>
+        {% if accounts %}
+        <button type="submit" class="btn btn-primary w-100">Save Transaction</button>
+        {% else %}
+        <div class="alert alert-info mb-0">
+          Create an account before adding transactions.
+          <a href="{{ url_for('main.accounts') }}" class="alert-link">Go to Accounts</a>
+        </div>
+        {% endif %}
+      </form>
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+    <div class="panel">
+      <div class="panel-header"><h3>Transaction history</h3></div>
+      <div id="transaction-history-feedback" class="alert d-none" role="status" aria-live="polite"></div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle transaction-history">
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Type</th>
+              <th>Category</th>
+              <th>Date</th>
+              <th>Amount</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for tx in transactions %}
+            <tr
+              data-transaction-id="{{ tx.id }}"
+              data-transaction-url="{{ url_for('main.transaction_api', transaction_id=tx.id) }}"
+              data-title="{{ tx.title }}"
+              data-type="{{ tx.type }}"
+              data-category="{{ tx.category or 'Other' }}"
+              data-amount="{{ tx.amount }}"
+              data-account-id="{{ tx.account_id or '' }}"
+              data-date="{{ tx.date.isoformat() }}"
+              data-payment-method="{{ tx.payment_method or 'Cash' }}"
+              data-description="{{ tx.notes or '' }}"
+            >
+              <td class="transaction-title">{{ tx.title }}</td>
+              <td class="transaction-type"><span class="badge bg-{{ 'success' if tx.type|lower == 'income' else 'warning' }} text-white">{{ tx.type }}</span></td>
+              <td class="transaction-category">{{ tx.category or 'Other' }}</td>
+              <td class="transaction-date">{{ tx.date }}</td>
+              <td class="transaction-amount">${{ '%.2f'|format(tx.amount) }}</td>
+              <td class="text-nowrap">
+                <button class="btn btn-sm btn-outline-primary edit-transaction" type="button" aria-label="Edit transaction"><i class="bi bi-pencil" aria-hidden="true"></i> Edit</button>
+                <button class="btn btn-sm btn-outline-danger delete-transaction" type="button" aria-label="Delete transaction"><i class="bi bi-trash" aria-hidden="true"></i> Delete</button>
+              </td>
+            </tr>
+            {% else %}
+            <tr class="no-transactions-row"><td colspan="6" class="text-center text-muted">No transactions recorded yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% include 'partials/transaction_edit_modal.html' %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/transactions.js') }}"></script>
+{% endblock %}
